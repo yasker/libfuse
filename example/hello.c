@@ -33,6 +33,7 @@
  */
 
 
+#define _GNU_SOURCE
 #define FUSE_USE_VERSION 30
 
 #include <config.h>
@@ -43,8 +44,18 @@
 #include <errno.h>
 #include <fcntl.h>
 
-static const char *hello_str = "Hello World!\n";
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
+
+//static const char *hello_str = "Hello World!\n";
 static const char *hello_path = "/hello";
+static const char *hello_backing_file = "/home/yasker/image";
+static const size_t hello_backing_size = 10 * 1024 * 1024 * 1024;
+
+static int f;
 
 static int hello_getattr(const char *path, struct stat *stbuf)
 {
@@ -55,9 +66,10 @@ static int hello_getattr(const char *path, struct stat *stbuf)
 		stbuf->st_mode = S_IFDIR | 0755;
 		stbuf->st_nlink = 2;
 	} else if (strcmp(path, hello_path) == 0) {
-		stbuf->st_mode = S_IFREG | 0444;
+		stbuf->st_mode = S_IFREG | 0666;
 		stbuf->st_nlink = 1;
-		stbuf->st_size = strlen(hello_str);
+		//stbuf->st_size = strlen(hello_str);
+		stbuf->st_size = hello_backing_size;
 	} else
 		res = -ENOENT;
 
@@ -87,10 +99,22 @@ static int hello_open(const char *path, struct fuse_file_info *fi)
 	if (strcmp(path, hello_path) != 0)
 		return -ENOENT;
 
+	/*
 	if ((fi->flags & 3) != O_RDONLY)
 		return -EACCES;
+	*/
+	f = open(hello_backing_file, O_RDWR);
+	if (f == -1) {
+		perror("Fail to open backing file:");
+		return f;
+	}
+        fi->direct_io = 1;
 
 	return 0;
+}
+
+static int hello_release(const char *path, struct fuse_file_info *fi) {
+        close(f);
 }
 
 static int hello_read(const char *path, char *buf, size_t size, off_t offset,
@@ -101,22 +125,67 @@ static int hello_read(const char *path, char *buf, size_t size, off_t offset,
 	if(strcmp(path, hello_path) != 0)
 		return -ENOENT;
 
-	len = strlen(hello_str);
+	len = hello_backing_size;
 	if (offset < len) {
 		if (offset + size > len)
 			size = len - offset;
-		memcpy(buf, hello_str + offset, size);
+		//memcpy(buf, hello_str + offset, size);
+		len = pread(f, buf, size, offset);
+		if (len == -1) {
+			perror("Fail to read");
+		}
 	} else
-		size = 0;
+		len = 0;
 
-	return size;
+	return len;
+}
+
+static int hello_write(const char * path, const char * buf, size_t size, off_t offset,
+		      struct fuse_file_info *fi) {
+	size_t len;
+	(void) fi;
+	if(strcmp(path, hello_path) != 0)
+		return -ENOENT;
+
+	len = hello_backing_size;
+	if (offset < len) {
+		if (offset + size > len) {
+			fprintf(stderr, "Overflow writing %lu at %ld",
+					size, offset);
+			return -1;
+		}
+		len = pwrite(f, buf, size, offset);
+		if (len == -1) {
+			perror("Fail to write");
+		}
+	} else
+		len = 0;
+
+	return len;
+}
+
+static int hello_setxattr(const char *path, const char *name, const char *value, size_t size, int flag) {
+	return 0;
+}
+
+static int hello_truncate(const char *path, off_t off) {
+	return 0;
+}
+
+static int hello_unlink(const char *path) {
+	return 0;
 }
 
 static struct fuse_operations hello_oper = {
 	.getattr	= hello_getattr,
 	.readdir	= hello_readdir,
 	.open		= hello_open,
+        .release        = hello_release,
 	.read		= hello_read,
+	.write		= hello_write,
+        .setxattr       = hello_setxattr,
+        .truncate       = hello_truncate,
+        .unlink         = hello_unlink,
 };
 
 int main(int argc, char *argv[])

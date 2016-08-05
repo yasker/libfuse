@@ -1878,8 +1878,10 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 			f->conn.capable |= FUSE_CAP_READDIRPLUS;
 		if (arg->flags & FUSE_READDIRPLUS_AUTO)
 			f->conn.capable |= FUSE_CAP_READDIRPLUS_AUTO;
-		if (arg->flags & FUSE_ASYNC_DIO)
+		if (arg->flags & FUSE_ASYNC_DIO) {
+                        fprintf(stderr, "async dio supported\n");
 			f->conn.capable |= FUSE_CAP_ASYNC_DIO;
+                }
 		if (arg->flags & FUSE_WRITEBACK_CACHE)
 			f->conn.capable |= FUSE_CAP_WRITEBACK_CACHE;
 		if (arg->flags & FUSE_NO_OPEN_SUPPORT)
@@ -1921,8 +1923,10 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 		if (!f->no_readdirplus_auto)
 			f->conn.want |= FUSE_CAP_READDIRPLUS_AUTO;
 	}
-	if (f->async_dio)
+	if (f->async_dio) {
+                fprintf(stderr, "async dio requested\n");
 		f->conn.want |= FUSE_CAP_ASYNC_DIO;
+        }
 	if (f->writeback_cache)
 		f->conn.want |= FUSE_CAP_WRITEBACK_CACHE;
 
@@ -1977,8 +1981,10 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 		outarg.flags |= FUSE_DO_READDIRPLUS;
 	if (f->conn.want & FUSE_CAP_READDIRPLUS_AUTO)
 		outarg.flags |= FUSE_READDIRPLUS_AUTO;
-	if (f->conn.want & FUSE_CAP_ASYNC_DIO)
+	if (f->conn.want & FUSE_CAP_ASYNC_DIO) {
+                fprintf(stderr, "ASYNC DIO IN outarg\n");
 		outarg.flags |= FUSE_ASYNC_DIO;
+        }
 	if (f->conn.want & FUSE_CAP_WRITEBACK_CACHE)
 		outarg.flags |= FUSE_WRITEBACK_CACHE;
 	outarg.max_readahead = f->conn.max_readahead;
